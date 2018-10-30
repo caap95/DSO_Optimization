@@ -28,7 +28,7 @@
 #include <iostream>
 
 #if !defined(__SSE3__) && !defined(__SSE2__) && !defined(__SSE1__)
-#include "SSE2NEON.h"
+//#include "SSE2NEON.h"
 #endif
 
 namespace dso
@@ -80,7 +80,7 @@ void AccumulatedTopHessianSSE::addPoint(EFPoint* p, EnergyFunctional const * con
 			resApprox = r->res_toZeroF;
 		if(mode==1)
 		{
-			// compute Jp*delta
+			// compute Jp*deltaute Jp*delta
 			__m128 Jp_delta_x = _mm_set1_ps(rJ->Jpdxi[0].dot(dp.head<6>())+rJ->Jpdc[0].dot(dc)+rJ->Jpdd[0]*dd);
 			__m128 Jp_delta_y = _mm_set1_ps(rJ->Jpdxi[1].dot(dp.head<6>())+rJ->Jpdc[1].dot(dc)+rJ->Jpdd[1]*dd);
 			__m128 delta_a = _mm_set1_ps((float)(dp[6]));
@@ -172,7 +172,6 @@ void AccumulatedTopHessianSSE::stitchDouble(MatXX &H, VecX &b, EnergyFunctional 
 {
 	H = MatXX::Zero(nframes[tid]*8+CPARS, nframes[tid]*8+CPARS);
 	b = VecX::Zero(nframes[tid]*8+CPARS);
-
 
 	for(int h=0;h<nframes[tid];h++)
 		for(int t=0;t<nframes[tid];t++)

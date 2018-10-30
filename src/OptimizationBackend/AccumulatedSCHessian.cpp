@@ -165,7 +165,7 @@ void AccumulatedSCHessianSSE::stitchDouble(MatXX &H, VecX &b, EnergyFunctional c
 	H = MatXX::Zero(nf*8+CPARS, nf*8+CPARS);
 	b = VecX::Zero(nf*8+CPARS);
 
-
+	//#pragma omp parallel for schedule(static) collapse(2)
 	for(int i=0;i<nf;i++)
 		for(int j=0;j<nf;j++)
 		{

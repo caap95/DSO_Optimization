@@ -29,6 +29,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <sys/time.h> 
+
+
 
 #include "IOWrapper/Output3DWrapper.h"
 #include "IOWrapper/ImageDisplay.h"
@@ -39,17 +42,19 @@
 #include "util/globalFuncs.h"
 #include "util/DatasetReader.h"
 #include "util/globalCalib.h"
+#include "FullSystem/HessianBlocks.h"
 
 #include "util/NumType.h"
 #include "FullSystem/FullSystem.h"
 #include "OptimizationBackend/MatrixAccumulators.h"
 #include "FullSystem/PixelSelector2.h"
 
-
-
 #include "IOWrapper/Pangolin/PangolinDSOViewer.h"
 #include "IOWrapper/OutputWrapper/SampleOutputWrapper.h"
 
+#include "cuda_functions.h"
+
+#include <omp.h>
 
 std::string vignette = "";
 std::string gammaCalib = "";
@@ -65,13 +70,19 @@ float playbackSpeed=0;	// 0 for linearize (play as fast as possible, while seque
 bool preload=false;
 bool useSampleOutput=false;
 
+int total = 0;
 
 int mode=0;
+
+
+struct timeval init, endT;
+double elapsed = 0;
+double elapsedTotal = 0;
+
 
 bool firstRosSpin=false;
 
 using namespace dso;
-
 
 void my_exit_handler(int s)
 {
@@ -349,29 +360,34 @@ void parseArgument(char* arg)
 	printf("could not parse argument \"%s\"!!!!\n", arg);
 }
 
-
-
 int main( int argc, char** argv )
 {
+
+	struct timeval t1, t2;
+	double elapsedTime = 0;
+	double elapsedTimeTmp = 0;	
+
+	gettimeofday(&init, NULL);
+
 	//setlocale(LC_ALL, "");
 	for(int i=1; i<argc;i++)
 		parseArgument(argv[i]);
 
 	// hook crtl+C.
-	boost::thread exThread = boost::thread(exitThread);
+	//boost::thread exThread = boost::thread(exitThread);
 
+	
 
 	ImageFolderReader* reader = new ImageFolderReader(source,calib, gammaCalib, vignette);
 	reader->setGlobalCalibration();
 
-
+	
 
 	if(setting_photometricCalibration > 0 && reader->getPhotometricGamma() == 0)
 	{
 		printf("ERROR: dont't have photometric calibation. Need to use commandline options mode=1 or mode=2 ");
 		exit(1);
 	}
-
 
 
 
@@ -395,30 +411,25 @@ int main( int argc, char** argv )
 	fullSystem->linearizeOperation = (playbackSpeed==0);
 
 
-
-
-
-
-
     IOWrap::PangolinDSOViewer* viewer = 0;
+
 	if(!disableAllDisplay)
     {
         viewer = new IOWrap::PangolinDSOViewer(wG[0],hG[0], false);
         fullSystem->outputWrapper.push_back(viewer);
     }
 
-
-
     if(useSampleOutput)
         fullSystem->outputWrapper.push_back(new IOWrap::SampleOutputWrapper());
-
-
 
 
     // to make MacOS happy: run this in dedicated thread -- and use this one to run the GUI.
     std::thread runthread([&]() {
         std::vector<int> idsToPlay;
         std::vector<double> timesToPlayAt;
+	
+		
+		
         for(int i=lstart;i>= 0 && i< reader->getNumImages() && linc*i < linc*lend;i+=linc)
         {
             idsToPlay.push_back(i);
@@ -433,9 +444,13 @@ int main( int argc, char** argv )
                 timesToPlayAt.push_back(timesToPlayAt.back() +  fabs(tsThis-tsPrev)/playbackSpeed);
             }
         }
-
+		
 
         std::vector<ImageAndExposure*> preloadedImages;
+	
+		
+		
+		
         if(preload)
         {
             printf("LOADING ALL IMAGES!\n");
@@ -445,15 +460,20 @@ int main( int argc, char** argv )
                 preloadedImages.push_back(reader->getImage(i));
             }
         }
+		
 
         struct timeval tv_start;
         gettimeofday(&tv_start, NULL);
         clock_t started = clock();
         double sInitializerOffset=0;
 
+		// For each image
 
+		
+		
         for(int ii=0;ii<(int)idsToPlay.size(); ii++)
         {
+			
             if(!fullSystem->initialized)	// if not initialized: reset start time.
             {
                 gettimeofday(&tv_start, NULL);
@@ -463,7 +483,6 @@ int main( int argc, char** argv )
 
             int i = idsToPlay[ii];
 
-
             ImageAndExposure* img;
             if(preload)
                 img = preloadedImages[ii];
@@ -471,6 +490,7 @@ int main( int argc, char** argv )
                 img = reader->getImage(i);
 
 
+	
 
             bool skipFrame=false;
             if(playbackSpeed!=0)
@@ -486,12 +506,11 @@ int main( int argc, char** argv )
                     skipFrame=true;
                 }
             }
-
-
-
+			
+			// BOTTLENECK!! 66.2% of execution time
+			
             if(!skipFrame) fullSystem->addActiveFrame(img, i);
-
-
+			
 
 
             delete img;
@@ -523,23 +542,31 @@ int main( int argc, char** argv )
                     printf("LOST!!\n");
                     break;
             }
+			
 
+			
         }
+		
+		printf("Number of keyframes created: %u\n", total);
         fullSystem->blockUntilMappingIsFinished();
         clock_t ended = clock();
         struct timeval tv_end;
         gettimeofday(&tv_end, NULL);
 
+		gettimeofday(&endT, NULL);
+		elapsed = (endT.tv_sec - init.tv_sec) +
+						(endT.tv_usec - init.tv_usec) / 1000000.0;
 
         fullSystem->printResult("result.txt");
 
-
         int numFramesProcessed = abs(idsToPlay[0]-idsToPlay.back());
+		printf("total time: %f || medium time per frame: %f\n", elapsedTotal, elapsedTotal/(total-1));
         double numSecondsProcessed = fabs(reader->getTimestamp(idsToPlay[0])-reader->getTimestamp(idsToPlay.back()));
         double MilliSecondsTakenSingle = 1000.0f*(ended-started)/(float)(CLOCKS_PER_SEC);
         double MilliSecondsTakenMT = sInitializerOffset + ((tv_end.tv_sec-tv_start.tv_sec)*1000.0f + (tv_end.tv_usec-tv_start.tv_usec)/1000.0f);
+
         printf("\n======================"
-                "\n%d Frames (%.1f fps)"
+                "\n%d FRAMES (%.1f fps)"
                 "\n%.2fms per frame (single core); "
                 "\n%.2fms per frame (multi core); "
                 "\n%.3fx (single core); "
@@ -550,6 +577,8 @@ int main( int argc, char** argv )
                 MilliSecondsTakenMT / (float)numFramesProcessed,
                 1000 / (MilliSecondsTakenSingle/numSecondsProcessed),
                 1000 / (MilliSecondsTakenMT / numSecondsProcessed));
+	
+	
         //fullSystem->printFrameLifetimes();
         if(setting_logStuff)
         {
@@ -560,14 +589,16 @@ int main( int argc, char** argv )
             tmlog.flush();
             tmlog.close();
         }
-
+	
+	
     });
-
+	
+	
+	
+	printf("Elapsed: %f\n", elapsed);
 
     if(viewer != 0)
         viewer->run();
-
-    runthread.join();
 
 	for(IOWrap::Output3DWrapper* ow : fullSystem->outputWrapper)
 	{
@@ -575,7 +606,8 @@ int main( int argc, char** argv )
 		delete ow;
 	}
 
-
+	
+	
 
 	printf("DELETE FULLSYSTEM!\n");
 	delete fullSystem;

@@ -21,12 +21,15 @@
 * along with DSO. If not, see <http://www.gnu.org/licenses/>.
 */
 
-
+#include <sys/time.h>
  
 #include "FullSystem/HessianBlocks.h"
 #include "util/FrameShell.h"
 #include "FullSystem/ImmaturePoint.h"
 #include "OptimizationBackend/EnergyFunctionalStructs.h"
+
+#include <omp.h>
+#include <ctime>
 
 namespace dso
 {
@@ -110,7 +113,7 @@ void FrameHessian::setStateZero(const Vec10 &state_zero)
 
 void FrameHessian::release()
 {
-	// DELETE POINT
+	// DELETE POINTETE POINT
 	// DELETE RESIDUAL
 	for(unsigned int i=0;i<pointHessians.size();i++) delete pointHessians[i];
 	for(unsigned int i=0;i<pointHessiansMarginalized.size();i++) delete pointHessiansMarginalized[i];
@@ -127,45 +130,76 @@ void FrameHessian::release()
 
 void FrameHessian::makeImages(float* color, CalibHessian* HCalib)
 {
-
+	
 	for(int i=0;i<pyrLevelsUsed;i++)
 	{
+		// 4 niveis. wg[0] = 640 hG[0] = 480, wg[1] = wG[0]/2 ....
 		dIp[i] = new Eigen::Vector3f[wG[i]*hG[i]];
 		absSquaredGrad[i] = new float[wG[i]*hG[i]];
 	}
-	dI = dIp[0];
 
+	
+	dI = dIp[0];
 
 	// make d0
 	int w=wG[0];
 	int h=hG[0];
-	for(int i=0;i<w*h;i++)
-		dI[i][0] = color[i];
+	int i;
 
+	for(i=0;i<w*h;i++)
+			dI[i][0] = color[i];
+	
+	
 	for(int lvl=0; lvl<pyrLevelsUsed; lvl++)
 	{
 		int wl = wG[lvl], hl = hG[lvl];
-		Eigen::Vector3f* dI_l = dIp[lvl];
+		Eigen::Vector3f* dI_l = dIp[lvl];                   
 
 		float* dabs_l = absSquaredGrad[lvl];
 		if(lvl>0)
 		{
 			int lvlm1 = lvl-1;
 			int wlm1 = wG[lvlm1];
-			Eigen::Vector3f* dI_lm = dIp[lvlm1];
+			int hlm1 = hG[lvlm1];
+			Eigen::Vector3f *dI_lm = dIp[lvlm1];
+
+			/*if(lvl==2)
+			{
+				for(int i = 0; i < 20; i++)
+				{
+					std::cout << " " << dI_lm[i][0] << " ";
+				}
+				std::cout << std::endl;
+			}
+
+			dI_l = makeImagesGPU(hl, wl, hlm1, wlm1, lvl, dI_lm);*/			
+			/*if(lvl==2){for(int x = 0; x < wl; x++)
+			{
+				std::cout << dI_l[x][0] << " ";  // A PARTIR DE Y = 80 FICA TUDO IGUAL A 0, ANTES DÁ TUDO BEM
+			}}*/
 
 
+			// 1ºlvl hl = 240 wl = 320 || 2ºlvl hl = 120 wl = 160 || 3ºlvl hl = 60 wl = 80
 
-			for(int y=0;y<hl;y++)
-				for(int x=0;x<wl;x++)
+			//gettimeofday(&t1, NULL);
+			
+			#pragma omp parallel for schedule(static) collapse(2)
+			for(int y=0;y<hl;y++) // hl
+				for(int x=0;x<wl;x++) // wl
 				{
 					dI_l[x + y*wl][0] = 0.25f * (dI_lm[2*x   + 2*y*wlm1][0] +
 												dI_lm[2*x+1 + 2*y*wlm1][0] +
 												dI_lm[2*x   + 2*y*wlm1+wlm1][0] +
 												dI_lm[2*x+1 + 2*y*wlm1+wlm1][0]);
 				}
+			
+			
+
+			//if(lvl==2){int x;
+			//std::cin >> x;}
 		}
 
+		#pragma omp parallel for schedule(static)
 		for(int idx=wl;idx < wl*(hl-1);idx++)
 		{
 			float dx = 0.5f*(dI_l[idx+1][0] - dI_l[idx-1][0]);

@@ -58,6 +58,7 @@ namespace dso
 		int idx=0;
 		for(FrameHessian* f : frameHessians)
 		{
+
 			std::vector<MinimalImageB3* > images;
 
 			// make images for all frames. will be deleted by the FrameHessian's destructor.
@@ -118,6 +119,8 @@ namespace dso
 		float minID=0, maxID=0;
 		if((int)(freeDebugParam5+0.5f) == 7 || (debugSaveImages&&false))
 		{
+			int xxx;
+			std::cin >> xxx; 
 			std::vector<float> allID;
 			for(unsigned int f=0;f<frameHessians.size();f++)
 			{
@@ -158,16 +161,6 @@ namespace dso
 		}
 
 
-
-
-
-
-
-
-
-
-
-
 		int wh = hG[0]*wG[0];
 		for(unsigned int f=0;f<frameHessians.size();f++)
 		{
@@ -176,7 +169,7 @@ namespace dso
 			//float* fd = frameHessians[f]->I;
 			Eigen::Vector3f* fd = frameHessians[f]->dI;
 
-
+			#pragma omp parallel for schedule(static)
 			for(int i=0;i<wh;i++)
 			{
 				int c = fd[i][0]*0.9f;
@@ -202,17 +195,43 @@ namespace dso
 			}
 			else if((int)(freeDebugParam5+0.5f) == 1)
 			{
-				for(PointHessian* ph : frameHessians[f]->pointHessians)
+				#pragma omp parallel for schedule(static)
+				for(int i = 0; i < frameHessians[f]->pointHessians.size(); i++)
+				{
+
+					PointHessian* ph = frameHessians[f]->pointHessians[i];
+					if(ph==0) continue;
+					img->setPixelCirc(ph->u+0.5f, ph->v+0.5f, makeRainbow3B(ph->idepth_scaled));
+
+				}
+				/*for(PointHessian* ph : frameHessians[f]->pointHessians)
 				{
 					if(ph==0) continue;
 					img->setPixelCirc(ph->u+0.5f, ph->v+0.5f, makeRainbow3B(ph->idepth_scaled));
-				}
+				}*/
 
-				for(PointHessian* ph : frameHessians[f]->pointHessiansMarginalized)
+				#pragma omp parallel for schedule(static)
+				for(int i = 0; i < frameHessians[f]->pointHessiansMarginalized.size(); i++)
+				{
+
+					PointHessian* ph = frameHessians[f]->pointHessiansMarginalized[i];
 					img->setPixelCirc(ph->u+0.5f, ph->v+0.5f, Vec3b(0,0,0));
 
-				for(PointHessian* ph : frameHessians[f]->pointHessiansOut)
+				}
+				/*for(PointHessian* ph : frameHessians[f]->pointHessiansMarginalized)
+					img->setPixelCirc(ph->u+0.5f, ph->v+0.5f, Vec3b(0,0,0));*/
+
+				#pragma omp parallel for schedule(static)
+				for(int i = 0; i < frameHessians[f]->pointHessiansOut.size(); i++)
+				{
+
+					PointHessian* ph = frameHessians[f]->pointHessiansOut[i];
 					img->setPixelCirc(ph->u+0.5f, ph->v+0.5f, Vec3b(255,255,255));
+
+				}
+
+				/*for(PointHessian* ph : frameHessians[f]->pointHessiansOut)
+					img->setPixelCirc(ph->u+0.5f, ph->v+0.5f, Vec3b(255,255,255));*/
 			}
 			else if((int)(freeDebugParam5+0.5f) == 2)
 			{
@@ -314,6 +333,7 @@ namespace dso
 		IOWrap::displayImageStitch(name.c_str(), images);
 		IOWrap::waitKey(5);
 
+		
 		for(unsigned int i=0;i<images.size();i++)
 			delete images[i];
 

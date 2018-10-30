@@ -69,7 +69,7 @@ float setting_minIdepthH_marg = 50;
 
 
 
-float setting_desiredImmatureDensity = 1500; // immature points per frame
+float setting_desiredImmatureDensity = 4000; // immature points per frame
 float setting_desiredPointDensity = 2000; // aimed total points in the active window.
 float setting_minPointsRemaining = 0.05;  // marg a frame if less than X% points remain.
 float setting_maxLogAffFacInWindow = 0.7; // marg a frame if factor between intensities to current frame is larger than 1/X or X.
@@ -93,7 +93,7 @@ float setting_outlierTHSumComponent = 50*50; 		// higher -> less strong gradient
 
 
 
-int setting_pattern = 8;						// point pattern used. DISABLED.
+int setting_pattern = 7;						// point pattern used. DISABLED.
 float setting_margWeightFac = 0.5*0.5;          // factor on hessian when marginalizing, to account for inaccurate linearization points.
 
 

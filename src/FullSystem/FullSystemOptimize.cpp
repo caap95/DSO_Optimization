@@ -51,6 +51,7 @@ namespace dso
 
 void FullSystem::linearizeAll_Reductor(bool fixLinearization, std::vector<PointFrameResidual*>* toRemove, int min, int max, Vec10* stats, int tid)
 {
+	
 	for(int k=min;k<max;k++)
 	{
 		PointFrameResidual* r = activeResiduals[k];
@@ -422,6 +423,7 @@ float FullSystem::optimize(int mnumOptIts)
 	activeResiduals.clear();
 	int numPoints = 0;
 	int numLRes = 0;
+
 	for(FrameHessian* fh : frameHessians)
 		for(PointHessian* ph : fh->pointHessians)
 		{
@@ -437,6 +439,7 @@ float FullSystem::optimize(int mnumOptIts)
 			}
 			numPoints++;
 		}
+
 
     if(!setting_debugout_runquiet)
         printf("OPTIMIZE %d pts, %d active res, %d lin res!\n",ef->nPoints,(int)activeResiduals.size(), numLRes);
@@ -469,16 +472,20 @@ float FullSystem::optimize(int mnumOptIts)
 	double lambda = 1e-1;
 	float stepsize=1;
 	VecX previousX = VecX::Constant(CPARS+ 8*frameHessians.size(), NAN);
+	int it = 0;
 	for(int iteration=0;iteration<mnumOptIts;iteration++)
 	{
+		it++;
 		// solve!
 		backupState(iteration!=0);
+		
 		//solveSystemNew(0);
 		solveSystem(iteration, lambda);
+		
 		double incDirChange = (1e-20 + previousX.dot(ef->lastX)) / (1e-20 + previousX.norm() * ef->lastX.norm());
 		previousX = ef->lastX;
-
-
+		
+		
 		if(std::isfinite(incDirChange) && (setting_solverMode & SOLVER_STEPMOMENTUM))
 		{
 			float newStepsize = exp(incDirChange*1.4);
@@ -491,19 +498,10 @@ float FullSystem::optimize(int mnumOptIts)
 
 		bool canbreak = doStepFromBackup(stepsize,stepsize,stepsize,stepsize,stepsize);
 
-
-
-
-
-
-
 		// eval new energy!
 		Vec3 newEnergy = linearizeAll(false);
 		double newEnergyL = calcLEnergy();
 		double newEnergyM = calcMEnergy();
-
-
-
 
         if(!setting_debugout_runquiet)
         {
@@ -544,8 +542,7 @@ float FullSystem::optimize(int mnumOptIts)
 
 		if(canbreak && iteration >= setting_minOptIterations) break;
 	}
-
-
+	
 
 	Vec10 newStateZero = Vec10::Zero();
 	newStateZero.segment<2>(6) = frameHessians.back()->get_state().segment<2>(6);
@@ -607,12 +604,13 @@ float FullSystem::optimize(int mnumOptIts)
 
 void FullSystem::solveSystem(int iteration, double lambda)
 {
+	
 	ef->lastNullspaces_forLogging = getNullspaces(
 			ef->lastNullspaces_pose,
 			ef->lastNullspaces_scale,
 			ef->lastNullspaces_affA,
 			ef->lastNullspaces_affB);
-
+	
 	ef->solveSystemF(iteration, lambda,&Hcalib);
 }
 
@@ -666,9 +664,10 @@ std::vector<VecX> FullSystem::getNullspaces(
 	nullspaces_affA.clear();
 	nullspaces_affB.clear();
 
-
+	
 	int n=CPARS+frameHessians.size()*8;
 	std::vector<VecX> nullspaces_x0_pre;
+	
 	for(int i=0;i<6;i++)
 	{
 		VecX nullspace_x0(n);
@@ -682,6 +681,7 @@ std::vector<VecX> FullSystem::getNullspaces(
 		nullspaces_x0_pre.push_back(nullspace_x0);
 		nullspaces_pose.push_back(nullspace_x0);
 	}
+	
 	for(int i=0;i<2;i++)
 	{
 		VecX nullspace_x0(n);
@@ -696,7 +696,7 @@ std::vector<VecX> FullSystem::getNullspaces(
 		if(i==0) nullspaces_affA.push_back(nullspace_x0);
 		if(i==1) nullspaces_affB.push_back(nullspace_x0);
 	}
-
+	
 	VecX nullspace_x0(n);
 	nullspace_x0.setZero();
 	for(FrameHessian* fh : frameHessians)

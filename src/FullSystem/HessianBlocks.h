@@ -34,6 +34,7 @@
 #include "util/NumType.h"
 #include "FullSystem/Residuals.h"
 #include "util/ImageAndExposure.h"
+#include "../cuda_functions.h"
 
 
 namespace dso

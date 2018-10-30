@@ -1,37 +1,70 @@
+#SET(CMAKE_C_COMPILER /opt/pgi/linux86-64/17.10/bin/pgcc)
+#SET(CMAKE_CXX_COMPILER /opt/pgi/linux86-64/17.10/bin/pgc++)
+
+#SET(CMAKE_C_COMPILER /offload/install/bin/gcc)
+#SET(CMAKE_CXX_COMPILER /offload/install/bin/g++)
+
 SET(PROJECT_NAME DSO)
 
 PROJECT(${PROJECT_NAME})
 CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
 #set(CMAKE_VERBOSE_MAKEFILE ON)
 
-
 set(BUILD_TYPE Release)
-#set(BUILD_TYPE RelWithDebInfo)
+#set(BUILD_TYPE RelWithDebInfo)	
 
 set(EXECUTABLE_OUTPUT_PATH bin)
 set(LIBRARY_OUTPUT_PATH lib)
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
 # required libraries
+#SET(CMAKE_INCLUDE_PATH ${CMAKE_INCLUDE_PATH} "/usr/include")
 find_package(SuiteParse REQUIRED)
 find_package(Eigen3 REQUIRED)
-find_package(Boost COMPONENTS system thread) 
+find_package(Boost)
 
 # optional libraries
 find_package(LibZip QUIET)
 find_package(Pangolin 0.2 QUIET)
 find_package(OpenCV QUIET)
+#find_package(OpenACC)
 
 # flags
 add_definitions("-DENABLE_SSE")
 set(CMAKE_CXX_FLAGS
-   "${SSE_FLAGS} -O3 -g -std=c++0x -march=native"
-#   "${SSE_FLAGS} -O3 -g -std=c++0x -fno-omit-frame-pointer"
+    #"${SSE_FLAGS} -O3 -g -std=c++0x -march=native"
+   #"${SSE_FLAGS} -O3 -g -std=c++0x -march=native -fopenacc -w -fopt-info-note-omp -m64"
+   # "${SSE_FLAGS} -O3 -g -std=c++11 -acc -Minfo=accel -ta=tesla:cc50 -silent -w -Wc,--pending_instantiations=0"
+   "${SSE_FLAGS} -O3 -g -std=c++11"
 )
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_FORCE_INLINES")
+
+set(CMAKE_C_FLAGS
+  # "${SSE_FLAGS} -pthread -lpthread -O3 -g -std=c++11 "
+    #"${SSE_FLAGS} -O3 -g -std=c++11 -Wc,--pending_instantiations=0"
+    "${SSE_FLAGS} -O3 --g -std=c++11"
+)
+
+#LIST(APPEND CMAKE_C_FLAGS "-Wall -Wextra -DUSE_NVTX") <<<< Error: doesn't recognize -Wall -Wextra
+#LIST(APPEND CMAKE_CXX_FLAGS "-Wall -Wextra -DUSE_NVTX") << Error: doesn't recognize -Wall -Wextra
+
+#find_package(CUDA REQUIRED)
+#set(CUDA_PROPAGATE_HOST_FLAGS OFF)
+#SET(CUDA_HOST_COMPILER /usr/bin/g++-5)
+#LIST(APPEND CUDA_NVCC_FLAGS "--compiler-options -fno-strict-aliasing -use_fast_math -ccbin gcc-5")
+
+#set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -std=c++11 -gencode arch=compute_50,code=sm_50")
 
 if (MSVC)
      set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
 endif (MSVC)
+
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY lib)
+
+#cuda_include_directories(
+#  ${CUDA_TOOLKIT_ROOT_DIR}/samples/common/inc
+#)
 
 # Sources files
 set(dso_SOURCE_FILES
@@ -54,8 +87,6 @@ set(dso_SOURCE_FILES
   ${PROJECT_SOURCE_DIR}/src/util/Undistort.cpp
   ${PROJECT_SOURCE_DIR}/src/util/globalCalib.cpp
 )
-
-
 
 include_directories(
   ${PROJECT_SOURCE_DIR}/src
@@ -124,9 +155,13 @@ endif()
 # build main executable (only if we have both OpenCV and Pangolin)
 if (OpenCV_FOUND AND Pangolin_FOUND)
 	message("--- compiling dso_dataset.")
-	add_executable(dso_dataset ${PROJECT_SOURCE_DIR}/src/main_dso_pangolin.cpp )
-    target_link_libraries(dso_dataset dso boost_system cxsparse ${BOOST_THREAD_LIBRARY} ${LIBZIP_LIBRARY} ${Pangolin_LIBRARIES} ${OpenCV_LIBS})
+	#cuda_add_executable(dso_dataset ${PROJECT_SOURCE_DIR}/src/main_dso_pangolin.cpp
+	add_executable(dso_dataset ${PROJECT_SOURCE_DIR}/src/main_dso_pangolin.cpp #${PROJECT_SOURCE_DIR}/src/cuda_functions.cu
+)
+        target_link_libraries(dso_dataset dso boost_system cxsparse ${BOOST_THREAD_LIBRARY} ${LIBZIP_LIBRARY} ${Pangolin_LIBRARIES} ${OpenCV_LIBS} #${CUDA_LIBRARIES}
+)
 else()
 	message("--- not building dso_dataset, since either don't have openCV or Pangolin.")
 endif()
 
+unset(CMAKE_RUNTIME_OUTPUT_DIRECTORY)

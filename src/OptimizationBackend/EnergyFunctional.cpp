@@ -31,7 +31,7 @@
 #include "OptimizationBackend/AccumulatedTopHessian.h"
 
 #if !defined(__SSE3__) && !defined(__SSE2__) && !defined(__SSE1__)
-#include "SSE2NEON.h"
+//#include "SSE2NEON.h"
 #endif
 
 namespace dso
@@ -51,6 +51,7 @@ void EnergyFunctional::setAdjointsF(CalibHessian* Hcalib)
 	adHost = new Mat88[nFrames*nFrames];
 	adTarget = new Mat88[nFrames*nFrames];
 
+	#pragma omp parallel for schedule(static) collapse(2)
 	for(int h=0;h<nFrames;h++)
 		for(int t=0;t<nFrames;t++)
 		{
@@ -449,7 +450,6 @@ EFFrame* EnergyFunctional::insertFrame(FrameHessian* fh, CalibHessian* Hcalib)
 	setAdjointsF(Hcalib);
 	makeIDX();
 
-
 	for(EFFrame* fh2 : frames)
 	{
         connectivityMap[(((uint64_t)eff->frameID) << 32) + ((uint64_t)fh2->frameID)] = Eigen::Vector2i(0,0);
@@ -620,6 +620,7 @@ void EnergyFunctional::marginalizePointsF()
 
 
 	allPointsToMarg.clear();
+
 	for(EFFrame* f : frames)
 	{
 		for(int i=0;i<(int)f->points.size();i++)
@@ -638,6 +639,7 @@ void EnergyFunctional::marginalizePointsF()
 
 	accSSE_bot->setZero(nFrames);
 	accSSE_top_A->setZero(nFrames);
+
 	for(EFPoint* p : allPointsToMarg)
 	{
 		accSSE_top_A->addPoint<2>(p,this);
@@ -698,7 +700,8 @@ void EnergyFunctional::dropPointsF()
 
 
 void EnergyFunctional::removePoint(EFPoint* p)
-{
+{	
+
 	for(EFResidual* r : p->residualsAll)
 		dropResidual(r);
 
@@ -784,7 +787,7 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 	MatXX HL_top, HA_top, H_sc;
 	VecX  bL_top, bA_top, bM_top, b_sc;
 
-	accumulateAF_MT(HA_top, bA_top,multiThreading);
+	accumulateAF_MT(HA_top, bA_top, multiThreading);
 
 
 	accumulateLF_MT(HL_top, bL_top,multiThreading);
@@ -913,6 +916,7 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 }
 void EnergyFunctional::makeIDX()
 {
+	
 	for(unsigned int idx=0;idx<frames.size();idx++)
 		frames[idx]->idx = idx;
 
@@ -928,7 +932,6 @@ void EnergyFunctional::makeIDX()
 				r->targetIDX = r->target->idx;
 			}
 		}
-
 
 	EFIndicesValid=true;
 }

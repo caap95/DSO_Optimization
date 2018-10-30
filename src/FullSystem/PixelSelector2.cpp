@@ -265,6 +265,7 @@ int PixelSelector::makeMaps(
 
 		MinimalImageB3 img(w,h);
 
+		
 		for(int i=0;i<w*h;i++)
 		{
 			float c = fh->dI[i][0]*0.7;
@@ -342,6 +343,7 @@ Eigen::Vector3i PixelSelector::select(const FrameHessian* const fh,
 		int mx3 = std::min((4*pot), w-x4);
 		int bestIdx4=-1; float bestVal4=0;
 		Vec2f dir4 = directions[randomPattern[n2] & 0xF];
+
 		for(int y3=0;y3<my3;y3+=(2*pot)) for(int x3=0;x3<mx3;x3+=(2*pot))
 		{
 			int x34 = x3+x4;

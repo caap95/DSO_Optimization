@@ -38,7 +38,7 @@
 #include <algorithm>
 
 #if !defined(__SSE3__) && !defined(__SSE2__) && !defined(__SSE1__)
-#include "SSE2NEON.h"
+//#include "SSE2NEON.h"
 #endif
 
 namespace dso
@@ -138,8 +138,9 @@ void CoarseTracker::makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians)
 	memset(idepth[0], 0, sizeof(float)*w[0]*h[0]);
 	memset(weightSums[0], 0, sizeof(float)*w[0]*h[0]);
 
+	
 	for(FrameHessian* fh : frameHessians)
-	{
+	{	
 		for(PointHessian* ph : fh->pointHessians)
 		{
 			if(ph->lastResiduals[0].first != 0 && ph->lastResiduals[0].second == ResState::IN)
@@ -156,7 +157,6 @@ void CoarseTracker::makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians)
 			}
 		}
 	}
-
 
 	for(int lvl=1; lvl<pyrLevelsUsed; lvl++)
 	{
@@ -227,6 +227,7 @@ void CoarseTracker::makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians)
 		memcpy(weightSumsl_bak, weightSumsl, w[lvl]*h[lvl]*sizeof(float));
 		float* idepthl = idepth[lvl];	// dotnt need to make a temp copy of depth, since I only
 										// read values with weightSumsl>0, and write ones with weightSumsl<=0.
+		
 		for(int i=w[lvl];i<wh;i++)
 		{
 			if(weightSumsl_bak[i] <= 0)
@@ -257,7 +258,7 @@ void CoarseTracker::makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians)
 		float* lpc_idepth = pc_idepth[lvl];
 		float* lpc_color = pc_color[lvl];
 
-
+		#pragma omp parallel for schedule(static) collapse(2)
 		for(int y=2;y<hl-2;y++)
 			for(int x=2;x<wl-2;x++)
 			{
@@ -308,6 +309,7 @@ void CoarseTracker::calcGSSSE(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &ref
 
 	int n = buf_warped_n;
 	assert(n%4==0);
+	
 	for(int i=0;i<n;i+=4)
 	{
 		__m128 dx = _mm_mul_ps(_mm_load_ps(buf_warped_dx+i), fxl);
@@ -395,7 +397,6 @@ Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, AffLight aff_g2l, floa
 	float* lpc_v = pc_v[lvl];
 	float* lpc_idepth = pc_idepth[lvl];
 	float* lpc_color = pc_color[lvl];
-
 
 	for(int i=0;i<nl;i++)
 	{
@@ -557,7 +558,6 @@ bool CoarseTracker::trackNewestCoarse(
 	AffLight aff_g2l_current = aff_g2l_out;
 
 	bool haveRepeated = false;
-
 
 	for(int lvl=coarsestLvl; lvl>=0; lvl--)
 	{
@@ -774,6 +774,7 @@ void CoarseTracker::debugPlotIDepthMap(float* minID_pt, float* maxID_pt, std::ve
 
 		MinimalImageB3 mf(w[lvl], h[lvl]);
 		mf.setBlack();
+		#pragma omp parallel for schedule(static)
 		for(int i=0;i<h[lvl]*w[lvl];i++)
 		{
 			int c = lastRef->dIp[lvl][i][0]*0.9f;
@@ -781,6 +782,8 @@ void CoarseTracker::debugPlotIDepthMap(float* minID_pt, float* maxID_pt, std::ve
 			mf.at(i) = Vec3b(c,c,c);
 		}
 		int wl = w[lvl];
+
+		#pragma omp parallel for schedule(static) collapse(2)
 		for(int y=3;y<h[lvl]-3;y++)
 			for(int x=3;x<wl-3;x++)
 			{
@@ -803,9 +806,17 @@ void CoarseTracker::debugPlotIDepthMap(float* minID_pt, float* maxID_pt, std::ve
 			}
         //IOWrap::displayImage("coarseDepth LVL0", &mf, false);
 
+        // for(IOWrap::Output3DWrapper* ow : wraps)
+        //     ow->pushDepthImage(&mf);
 
-        for(IOWrap::Output3DWrapper* ow : wraps)
-            ow->pushDepthImage(&mf);
+		#pragma omp parallel for schedule(static)
+		for(int i = 0; i < wraps.size(); i++)
+		{
+
+			IOWrap::Output3DWrapper* ow = wraps[i];
+			ow->pushDepthImage(&mf);
+
+		}
 
 		if(debugSaveImages)
 		{
@@ -1031,6 +1042,7 @@ void CoarseDistanceMap::makeK(CalibHessian* HCalib)
 	cx[0] = HCalib->cxl();
 	cy[0] = HCalib->cyl();
 
+	#pragma omp parallel for schedule(static)
 	for (int level = 1; level < pyrLevelsUsed; ++ level)
 	{
 		w[level] = w[0] >> level;
@@ -1040,7 +1052,8 @@ void CoarseDistanceMap::makeK(CalibHessian* HCalib)
 		cx[level] = (cx[0] + 0.5) / ((int)1<<level) - 0.5;
 		cy[level] = (cy[0] + 0.5) / ((int)1<<level) - 0.5;
 	}
-
+	
+	#pragma omp parallel for schedule(static)
 	for (int level = 0; level < pyrLevelsUsed; ++ level)
 	{
 		K[level]  << fx[level], 0.0, cx[level], 0.0, fy[level], cy[level], 0.0, 0.0, 1.0;

@@ -220,7 +220,8 @@ void PhotometricUndistorter::processFrame(T* image_in, float exposure_time, floa
 
 
 	if(!valid || exposure_time <= 0 || setting_photometricCalibration==0) // disable full photometric calibration.
-	{
+	{	
+		#pragma omp parallel for schedule(static)
 		for(int i=0; i<wh;i++)
 		{
 			data[i] = factor*image_in[i];
@@ -229,7 +230,8 @@ void PhotometricUndistorter::processFrame(T* image_in, float exposure_time, floa
 		output->timestamp = 0;
 	}
 	else
-	{
+	{	
+		#pragma omp parallel for schedule(static)
 		for(int i=0; i<wh;i++)
 		{
 			data[i] = G[image_in[i]];
@@ -237,6 +239,7 @@ void PhotometricUndistorter::processFrame(T* image_in, float exposure_time, floa
 
 		if(setting_photometricCalibration==2)
 		{
+			#pragma omp parallel for schedule(static)
 			for(int i=0; i<wh;i++)
 				data[i] *= vignetteMapInv[i];
 		}
@@ -385,6 +388,7 @@ void Undistort::loadPhotometricCalibration(std::string file, std::string noiseIm
 template<typename T>
 ImageAndExposure* Undistort::undistort(const MinimalImage<T>* image_raw, float exposure, double timestamp, float factor) const
 {
+	
 	if(image_raw->w != wOrg || image_raw->h != hOrg)
 	{
 		printf("Undistort::undistort: wrong image size (%d %d instead of %d %d) \n", image_raw->w, image_raw->h, w, h);
@@ -395,8 +399,10 @@ ImageAndExposure* Undistort::undistort(const MinimalImage<T>* image_raw, float e
 	ImageAndExposure* result = new ImageAndExposure(w, h, timestamp);
 	photometricUndist->output->copyMetaTo(*result);
 
+	
 	if (!passthrough)
 	{
+		
 		float* out_data = result->image;
 		float* in_data = photometricUndist->output->image;
 
@@ -417,7 +423,7 @@ ImageAndExposure* Undistort::undistort(const MinimalImage<T>* image_raw, float e
 			}
 		}
 
-
+		#pragma omp parallel for schedule(static)
 		for(int idx = w*h-1;idx>=0;idx--)
 		{
 			// get interp. values

@@ -234,6 +234,7 @@ ImmaturePointStatus ImmaturePoint::traceOn(FrameHessian* frame,const Mat33f &hos
 
 
 	Vec2f rotatetPattern[MAX_RES_PER_POINT];
+	
 	for(int idx=0;idx<patternNum;idx++)
 		rotatetPattern[idx] = Rplane * Vec2f(patternP[idx][0], patternP[idx][1]);
 
@@ -276,18 +277,16 @@ ImmaturePointStatus ImmaturePoint::traceOn(FrameHessian* frame,const Mat33f &hos
 			printf("step %.1f %.1f (id %f): energy = %f!\n",
 					ptx, pty, 0.0f, energy);
 
-
 		errors[i] = energy;
 		if(energy < bestEnergy)
-		{
+		{			
 			bestU = ptx; bestV = pty; bestEnergy = energy; bestIdx = i;
 		}
-
 		ptx+=dx;
 		pty+=dy;
 	}
 
-
+	
 	// find best score outside a +-2px radius.
 	float secondBest=1e10;
 	for(int i=0;i<numSteps;i++)
@@ -303,6 +302,7 @@ ImmaturePointStatus ImmaturePoint::traceOn(FrameHessian* frame,const Mat33f &hos
 	float uBak=bestU, vBak=bestV, gnstepsize=1, stepBack=0;
 	if(setting_trace_GNIterations>0) bestEnergy = 1e5;
 	int gnStepsGood=0, gnStepsBad=0;
+
 	for(int it=0;it<setting_trace_GNIterations;it++)
 	{
 		float H = 1, b=0, energy=0;

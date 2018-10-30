@@ -184,7 +184,9 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
 	{
 		float Ku, Kv;
 		if(!projectPoint(point->u+patternP[idx][0], point->v+patternP[idx][1], point->idepth_scaled, PRE_KRKiTll, PRE_KtTll, Ku, Kv))
-			{ state_NewState = ResState::OOB; return state_energy; }
+			{ state_NewState = ResState::OOB; 
+			return state_energy; 
+			}
 
 		projectedTo[idx][0] = Ku;
 		projectedTo[idx][1] = Kv;
@@ -197,7 +199,9 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
 
 		float drdA = (color[idx]-b0);
 		if(!std::isfinite((float)hitColor[0]))
-		{ state_NewState = ResState::OOB; return state_energy; }
+		{ state_NewState = ResState::OOB; 
+		return state_energy; 
+		}
 
 
 		float w = sqrtf(setting_outlierTHSumComponent / (setting_outlierTHSumComponent + hitColor.tail<2>().squaredNorm()));

@@ -195,8 +195,14 @@ void FullSystem::marginalizeFrame(FrameHessian* frame)
     {
         std::vector<FrameHessian*> v;
         v.push_back(frame);
-        for(IOWrap::Output3DWrapper* ow : outputWrapper)
-            ow->publishKeyframes(v, true, &Hcalib);
+		#pragma omp parallel for schedule(static)
+		for(int i = 0; i < outputWrapper.size(); i++)
+		{
+			IOWrap::Output3DWrapper* ow = outputWrapper[i];
+			ow->publishKeyframes(v, true, &Hcalib);
+		}
+        //for(IOWrap::Output3DWrapper* ow : outputWrapper)
+        //    ow->publishKeyframes(v, true, &Hcalib);
     }
 
 

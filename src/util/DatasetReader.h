@@ -131,6 +131,7 @@ public:
 
 			files.clear();
 			int numEntries = zip_get_num_entries(ziparchive, 0);
+
 			for(int k=0;k<numEntries;k++)
 			{
 				const char* name = zip_get_name(ziparchive, k,  ZIP_FL_ENC_STRICT);
@@ -138,7 +139,7 @@ public:
 				if(nstr == "." || nstr == "..") continue;
 				files.push_back(name);
 			}
-
+			
 			printf("got %d entries and %d files!\n", numEntries, (int)files.size());
 			std::sort(files.begin(), files.end());
 #else
@@ -295,7 +296,11 @@ private:
 	{
 		std::ifstream tr;
 		std::string timesFile = path.substr(0,path.find_last_of('/')) + "/times.txt";
-		tr.open(timesFile.c_str());
+		// printf("file: %s\n", path.find_last_of('/'));
+		// int x;
+		// scanf("%d", x); 
+		//tr.open(timesFile.c_str());
+		tr.open("times.txt");
 		while(!tr.eof() && tr.good())
 		{
 			std::string line;
@@ -305,6 +310,7 @@ private:
 			int id;
 			double stamp;
 			float exposure = 0;
+			char* aux;
 
 			if(3 == sscanf(buf, "%d %lf %f", &id, &stamp, &exposure))
 			{
@@ -312,13 +318,22 @@ private:
 				exposures.push_back(exposure);
 			}
 
-			else if(2 == sscanf(buf, "%d %lf", &id, &stamp))
+			/*else if(2 == sscanf(buf, "%d %lf", &id, &stamp))
 			{
 				timestamps.push_back(stamp);
 				exposures.push_back(exposure);
+			}*/
+			else if(2 == sscanf(buf, "%lf %c", &stamp, &aux))
+			{
+				timestamps.push_back(stamp);
+				exposures.push_back(0);
+
 			}
+			
+			
 		}
 		tr.close();
+		
 
 		// check if exposures are correct, (possibly skip)
 		bool exposuresGood = ((int)exposures.size()==(int)getNumImages()) ;
@@ -337,7 +352,6 @@ private:
 
 			if(exposures[i] == 0) exposuresGood=false;
 		}
-
 
 		if((int)getNumImages() != (int)timestamps.size())
 		{

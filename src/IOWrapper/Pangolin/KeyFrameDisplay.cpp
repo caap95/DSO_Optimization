@@ -101,6 +101,7 @@ void KeyFrameDisplay::setFromKF(FrameHessian* fh, CalibHessian* HCalib)
 
     InputPointSparse<MAX_RES_PER_POINT>* pc = originalInputSparse;
 	numSparsePoints=0;
+	
 	for(ImmaturePoint* p : fh->immaturePoints)
 	{
 		for(int i=0;i<patternNum;i++)
@@ -115,7 +116,6 @@ void KeyFrameDisplay::setFromKF(FrameHessian* fh, CalibHessian* HCalib)
 		pc[numSparsePoints].status = 0;
 		numSparsePoints++;
 	}
-
 	for(PointHessian* p : fh->pointHessians)
 	{
 		for(int i=0;i<patternNum;i++)
@@ -130,6 +130,8 @@ void KeyFrameDisplay::setFromKF(FrameHessian* fh, CalibHessian* HCalib)
 
 		numSparsePoints++;
 	}
+
+	
 
 	for(PointHessian* p : fh->pointHessiansMarginalized)
 	{

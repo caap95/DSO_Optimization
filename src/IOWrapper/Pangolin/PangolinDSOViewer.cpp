@@ -292,7 +292,7 @@ void PangolinDSOViewer::run()
 	printf("QUIT Pangolin thread!\n");
 	printf("I'll just kill the whole process.\nSo Long, and Thanks for All the Fish!\n");
 
-	exit(1);
+	//exit(1);
 }
 
 
@@ -472,8 +472,10 @@ void PangolinDSOViewer::publishKeyframes(
     if(disableAllDisplay) return;
 
 	boost::unique_lock<boost::mutex> lk(model3DMutex);
-	for(FrameHessian* fh : frames)
+	#pragma omp parallel for schedule(static)
+	for(int i = 0; i < frames.size(); i++)
 	{
+		FrameHessian* fh = frames[i];
 		if(keyframesByKFID.find(fh->frameID) == keyframesByKFID.end())
 		{
 			KeyFrameDisplay* kfd = new KeyFrameDisplay();
@@ -482,6 +484,16 @@ void PangolinDSOViewer::publishKeyframes(
 		}
 		keyframesByKFID[fh->frameID]->setFromKF(fh, HCalib);
 	}
+	/*for(FrameHessian* fh : frames)
+	{
+		if(keyframesByKFID.find(fh->frameID) == keyframesByKFID.end())
+		{
+			KeyFrameDisplay* kfd = new KeyFrameDisplay();
+			keyframesByKFID[fh->frameID] = kfd;
+			keyframes.push_back(kfd);
+		}
+		keyframesByKFID[fh->frameID]->setFromKF(fh, HCalib);
+	}*/
 }
 void PangolinDSOViewer::publishCamPose(FrameShell* frame,
 		CalibHessian* HCalib)
@@ -510,6 +522,7 @@ void PangolinDSOViewer::pushLiveFrame(FrameHessian* image)
 
 	boost::unique_lock<boost::mutex> lk(openImagesMutex);
 
+	#pragma omp parallel for schedule(static)
 	for(int i=0;i<w*h;i++)
 		internalVideoImg->data[i][0] =
 		internalVideoImg->data[i][1] =

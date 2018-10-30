@@ -39,7 +39,7 @@
 
 
 #if !defined(__SSE3__) && !defined(__SSE2__) && !defined(__SSE1__)
-#include "SSE2NEON.h"
+//#include "SSE2NEON.h"
 #endif
 
 namespace dso
@@ -121,8 +121,6 @@ bool CoarseInitializer::trackFrame(FrameHessian* newFrameHessian, std::vector<IO
 	Vec3f latestRes = Vec3f::Zero();
 	for(int lvl=pyrLevelsUsed-1; lvl>=0; lvl--)
 	{
-
-
 
 		if(lvl<pyrLevelsUsed-1)
 			propagateDown(lvl+1);
@@ -288,6 +286,7 @@ void CoarseInitializer::debugPlot(int lvl, std::vector<IOWrap::Output3DWrapper*>
 
 	MinimalImageB3 iRImg(wl,hl);
 
+	#pragma omp parallel for schedule(static)
 	for(int i=0;i<wl*hl;i++)
 		iRImg.at(i) = Vec3b(colorRef[i][0],colorRef[i][0],colorRef[i][0]);
 
@@ -295,6 +294,7 @@ void CoarseInitializer::debugPlot(int lvl, std::vector<IOWrap::Output3DWrapper*>
 	int npts = numPoints[lvl];
 
 	float nid = 0, sid=0;
+	#pragma omp parallel for schedule(static)
 	for(int i=0;i<npts;i++)
 	{
 		Pnt* point = points[lvl]+i;
@@ -307,7 +307,7 @@ void CoarseInitializer::debugPlot(int lvl, std::vector<IOWrap::Output3DWrapper*>
 	float fac = nid / sid;
 
 
-
+	#pragma omp parallel for schedule(static)
 	for(int i=0;i<npts;i++)
 	{
 		Pnt* point = points[lvl]+i;
@@ -325,6 +325,8 @@ void CoarseInitializer::debugPlot(int lvl, std::vector<IOWrap::Output3DWrapper*>
         ow->pushDepthImage(&iRImg);
 }
 
+int aux = 0;
+
 // calculates residual, Hessian and Hessian-block neede for re-substituting depth.
 Vec3f CoarseInitializer::calcResAndGS(
 		int lvl, Mat88f &H_out, Vec8f &b_out,
@@ -332,6 +334,7 @@ Vec3f CoarseInitializer::calcResAndGS(
 		const SE3 &refToNew, AffLight refToNew_aff,
 		bool plot)
 {
+	aux ++;
 	int wl = w[lvl], hl = h[lvl];
 	Eigen::Vector3f* colorRef = firstFrame->dIp[lvl];
 	Eigen::Vector3f* colorNew = newFrame->dIp[lvl];
@@ -353,11 +356,11 @@ Vec3f CoarseInitializer::calcResAndGS(
 
 	int npts = numPoints[lvl];
 	Pnt* ptsl = points[lvl];
+
+	//#pragma omp parallel for schedule(static)
 	for(int i=0;i<npts;i++)
 	{
-
 		Pnt* point = ptsl+i;
-
 		point->maxstep = 1e10;
 		if(!point->isGood)
 		{
@@ -488,8 +491,9 @@ Vec3f CoarseInitializer::calcResAndGS(
 					(float)dp4[i],(float)dp5[i],(float)dp6[i],(float)dp7[i],
 					(float)r[i]);
 
-
 	}
+
+	
 
 	E.finish();
 	acc9.finish();
@@ -502,6 +506,7 @@ Vec3f CoarseInitializer::calcResAndGS(
 	// calculate alpha energy, and decide if we cap it.
 	Accumulator11 EAlpha;
 	EAlpha.initialize();
+	#pragma omp parallel for schedule(static)
 	for(int i=0;i<npts;i++)
 	{
 		Pnt* point = ptsl+i;
@@ -535,6 +540,7 @@ Vec3f CoarseInitializer::calcResAndGS(
 
 
 	acc9SC.initialize();
+	#pragma omp parallel for schedule(static)
 	for(int i=0;i<npts;i++)
 	{
 		Pnt* point = ptsl+i;
@@ -629,6 +635,8 @@ Vec3f CoarseInitializer::calcEC(int lvl)
 	//printf("ER: %f %f %f!\n", couplingWeight*E.A1m[0], couplingWeight*E.A1m[1], (float)E.num.numIn1m);
 	return Vec3f(couplingWeight*E.A1m[0], couplingWeight*E.A1m[1], E.num);
 }
+
+
 void CoarseInitializer::optReg(int lvl)
 {
 	int npts = numPoints[lvl];
@@ -640,7 +648,7 @@ void CoarseInitializer::optReg(int lvl)
 		return;
 	}
 
-
+	#pragma omp parallel for schedule(static)
 	for(int i=0;i<npts;i++)
 	{
 		Pnt* point = ptsl+i;
@@ -679,6 +687,7 @@ void CoarseInitializer::propagateUp(int srcLvl)
 	Pnt* ptst = points[srcLvl+1];
 
 	// set to zero.
+	#pragma omp parallel for schedule(static)
 	for(int i=0;i<nptst;i++)
 	{
 		Pnt* parent = ptst+i;
@@ -686,6 +695,7 @@ void CoarseInitializer::propagateUp(int srcLvl)
 		parent->iRSumNum=0;
 	}
 
+	#pragma omp parallel for schedule(static)
 	for(int i=0;i<nptss;i++)
 	{
 		Pnt* point = ptss+i;
@@ -696,6 +706,7 @@ void CoarseInitializer::propagateUp(int srcLvl)
 		parent->iRSumNum += point->lastHessian;
 	}
 
+	#pragma omp parallel for schedule(static)
 	for(int i=0;i<nptst;i++)
 	{
 		Pnt* parent = ptst+i;
@@ -794,6 +805,7 @@ void CoarseInitializer::setFirst(	CalibHessian* HCalib, FrameHessian* newFrameHe
 		int wl = w[lvl], hl = h[lvl];
 		Pnt* pl = points[lvl];
 		int nl = 0;
+		#pragma omp parallel for schedule(static) collapse(2)
 		for(int y=patternPadding+1;y<hl-patternPadding-2;y++)
 		for(int x=patternPadding+1;x<wl-patternPadding-2;x++)
 		{
@@ -886,6 +898,7 @@ void CoarseInitializer::doStep(int lvl, float lambda, Vec8f inc)
 	const float idMaxStep = 1e10;
 	Pnt* pts = points[lvl];
 	int npts = numPoints[lvl];
+	#pragma omp parallel for schedule(static)
 	for(int i=0;i<npts;i++)
 	{
 		if(!pts[i].isGood) continue;
@@ -982,6 +995,7 @@ void CoarseInitializer::makeNN()
 	const int nn=10;
 
 	// find NN & parents
+	#pragma omp parallel for schedule(static)
 	for(int lvl=0;lvl<pyrLevelsUsed;lvl++)
 	{
 		Pnt* pts = points[lvl];
@@ -992,6 +1006,7 @@ void CoarseInitializer::makeNN()
 		nanoflann::KNNResultSet<float, int, int> resultSet(nn);
 		nanoflann::KNNResultSet<float, int, int> resultSet1(1);
 
+		
 		for(int i=0;i<npts;i++)
 		{
 			//resultSet.init(pts[i].neighbours, pts[i].neighboursDist );
